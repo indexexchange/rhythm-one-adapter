@@ -233,8 +233,8 @@ window.headertag.partnerScopes.push(function() {
 
         var yourBidder = new Partner(config);
 
-        window.RhythmOneHtb = {};
-        window.RhythmOneHtb.render = yourBidder.renderAd;
+        window.headertag.RhythmOneHtb = {};
+        window.headertag.RhythmOneHtb.render = yourBidder.renderAd;
 
         window.headertag[PARTNER_ID] = {};
         window.headertag[PARTNER_ID].callback = yourBidder.responseCallback;
