@@ -16,7 +16,6 @@
 // Dependencies ////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
-var BidTransformer = require('bid-transformer.js');
 var Browser = require('browser.js');
 var Classify = require('classify.js');
 var Constants = require('constants.js');
@@ -24,8 +23,9 @@ var Partner = require('partner.js');
 var Size = require('size.js');
 var SpaceCamp = require('space-camp.js');
 var System = require('system.js');
+var Network = require('network.js');
 var Utilities = require('utilities.js');
-var Whoopsie = require('whoopsie.js');
+var ComplianceService;
 var EventsService;
 var RenderService;
 
@@ -33,6 +33,7 @@ var RenderService;
 var ConfigValidators = require('config-validators.js');
 var PartnerSpecificValidator = require('rhythm-one-htb-validator.js');
 var Scribe = require('scribe.js');
+var Whoopsie = require('whoopsie.js');
 //? }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -66,13 +67,6 @@ function RhythmOneHtb(configs) {
      */
     var __profile;
 
-    /**
-     * Instances of BidTransformer for transforming bids.
-     *
-     * @private {object}
-     */
-    var __bidTransformers;
-
     /* =====================================
      * Functions
      * ---------------------------------- */
@@ -89,9 +83,6 @@ function RhythmOneHtb(configs) {
      * @return {object}
      */
     function __generateRequestObj(returnParcels) {
-        var queryObj = {};
-        var baseUrl = Browser.getProtocol() + '';
-        var callbackId = System.generateUniqueId();
 
         /* =============================================================================
          * STEP 2  | Generate Request URL
@@ -115,7 +106,7 @@ function RhythmOneHtb(configs) {
          * callbackId:
          *
          * arbitrary id to match the request with the response in the callback function. If
-         * your endpoint supports passing in an arbitrary ID and returning as part of the response
+         * your endpoint supports passing in an arbitrary ID and returning it as part of the response
          * please use the callbackType: Partner.CallbackTypes.ID and fill out the adResponseCallback.
          * Also please provide this adResponseCallback to your bid request here so that the JSONP
          * response calls it once it has completed.
@@ -125,7 +116,8 @@ function RhythmOneHtb(configs) {
          * matching by generating unique callbacks for each request using the callbackId.
          *
          * If your endpoint is ajax only, please set the appropriate values in your profile for this,
-         * i.e. Partner.CallbackTypes.NONE and Partner.Requesttypes.AJAX
+         * i.e. Partner.CallbackTypes.NONE and Partner.Requesttypes.AJAX. You also do not need to provide
+         * a callbackId in this case because there is no callback.
          *
          * The return object should look something like this:
          * {
@@ -149,7 +141,43 @@ function RhythmOneHtb(configs) {
          * }
          */
 
-        /* PUT CODE HERE */
+        /* ---------------------- PUT CODE HERE ------------------------------------ */
+        var queryObj = {};
+        var callbackId = System.generateUniqueId();
+
+        /* Change this to your bidder endpoint.*/
+        var baseUrl = Browser.getProtocol() + '//someAdapterEndpoint.com/bid';
+
+        /* ------------------------ Get consent information -------------------------
+         * If you want to implement GDPR consent in your adapter, use the function
+         * ComplianceService.gdpr.getConsent() which will return an object.
+         *
+         * Here is what the values in that object mean:
+         *      - applies: the boolean value indicating if the request is subject to
+         *      GDPR regulations
+         *      - consentString: the consent string developed by GDPR Consent Working
+         *      Group under the auspices of IAB Europe
+         *
+         * The return object should look something like this:
+         * {
+         *      applies: true,
+         *      consentString: "BOQ7WlgOQ7WlgABABwAAABJOACgACAAQABA"
+         * }
+         *
+         * You can also determine whether or not the publisher has enabled privacy
+         * features in their wrapper by querying ComplianceService.isPrivacyEnabled().
+         * 
+         * This function will return a boolean, which indicates whether the wrapper's
+         * privacy features are on (true) or off (false). If they are off, the values
+         * returned from gdpr.getConsent() are safe defaults and no attempt has been
+         * made by the wrapper to contact a Consent Management Platform.
+         */
+        var gdprStatus = ComplianceService.gdpr.getConsent();
+        var privacyEnabled = ComplianceService.isPrivacyEnabled();
+
+        /* ---------------- Craft bid request using the above returnParcels --------- */
+
+        /* ------- Put GDPR consent code here if you are implementing GDPR ---------- */
 
         /* -------------------------------------------------------------------------- */
 
@@ -182,17 +210,22 @@ function RhythmOneHtb(configs) {
      * ---------------------------------- */
 
     /* =============================================================================
-     * STEP 5  | Rendering
+     * STEP 5  | Rendering Pixel
      * -----------------------------------------------------------------------------
      *
-     * This function will render the ad given. Usually need not be changed unless
-     * special render functionality is needed.
-     *
-     * @param  {Object} doc The document of the iframe where the ad will go.
-     * @param  {string} adm The ad code that came with the original demand.
+    */
+
+     /**
+     * This function will render the pixel given.
+     * @param  {string} pixelUrl Tracking pixel img url.
      */
-    function __render(doc, adm) {
-        System.documentWrite(doc, adm);
+    function __renderPixel(pixelUrl) {
+        if (pixelUrl){
+            Network.img({
+                url: decodeURIComponent(pixelUrl),
+                method: 'GET',
+            });
+        }
     }
 
     /**
@@ -201,7 +234,7 @@ function RhythmOneHtb(configs) {
      *
      * @param {string} sessionId The sessionId, used for stats and other events.
      *
-     * @param {any} adResponse This is the adresponse as returned from the bid request, that was either
+     * @param {any} adResponse This is the bid response as returned from the bid request, that was either
      * passed to a JSONP callback or simply sent back via AJAX.
      *
      * @param {object[]} returnParcels The array of original parcels, SAME array that was passed to
@@ -210,7 +243,6 @@ function RhythmOneHtb(configs) {
      */
     function __parseResponse(sessionId, adResponse, returnParcels) {
 
-        var unusedReturnParcels = returnParcels.slice();
 
         /* =============================================================================
          * STEP 4  | Parse & store demand response
@@ -231,17 +263,24 @@ function RhythmOneHtb(configs) {
          *
          */
 
-        /* ---------- Proces adResponse and extract the bids into the bids array ------------*/
+        /* ---------- Process adResponse and extract the bids into the bids array ------------*/
 
         var bids = adResponse;
 
         /* --------------------------------------------------------------------------------- */
 
-        for (var i = 0; i < bids.length; i++) {
+        for (var j = 0; j < returnParcels.length; j++) {
 
-            var curReturnParcel;
+            var curReturnParcel = returnParcels[j];
 
-            for (var j = unusedReturnParcels.length - 1; j >= 0; j--) {
+            var headerStatsInfo = {};
+            var htSlotId = curReturnParcel.htSlot.getId();
+            headerStatsInfo[htSlotId] = {};
+            headerStatsInfo[htSlotId][curReturnParcel.requestId] = [curReturnParcel.xSlotName];
+
+            var curBid;
+
+            for (var i = 0; i < bids.length; i++) {
 
                 /**
                  * This section maps internal returnParcels and demand returned from the bid request.
@@ -250,113 +289,116 @@ function RhythmOneHtb(configs) {
                  * key to a key that represents the placement in the configuration and in the bid responses.
                  */
 
-                if (unusedReturnParcels[j].someCriteria === bids[i].someCriteria) { // change this
-                    curReturnParcel = unusedReturnParcels[j];
-                    unusedReturnParcels.splice(j, 1);
+                /* ----------- Fill this out to find a matching bid for the current parcel ------------- */
+                if (curReturnParcel.xSlotRef.someCriteria === bids[i].someCriteria) {
+                    curBid = bids[i];
+                    bids.splice(i, 1);
                     break;
                 }
             }
 
-            if (!curReturnParcel) {
+            /* No matching bid found so its a pass */
+            if (!curBid) {
+                if (__profile.enabledAnalytics.requestTime) {
+                    __baseClass._emitStatsEvent(sessionId, 'hs_slot_pass', headerStatsInfo);
+                }
+                curReturnParcel.pass = true;
                 continue;
             }
 
             /* ---------- Fill the bid variables with data from the bid response here. ------------*/
 
-            var bidPrice; // the bid price for the given slot
-            var bidWidth; // the width of the given slot
-            var bidHeight; // the height of the given slot
-            var bidCreative; // the creative/adm for the given slot that will be rendered if is the winner.
-            var bidDealId; // the dealId if applicable for this slot.
-            var bidIsPass; // true/false value for if the module returned a pass for this slot.
+            /* Using the above variable, curBid, extract various information about the bid and assign it to
+             * these local variables */
+
+            /* the bid price for the given slot */
+            var bidPrice = curBid.price;
+
+            /* the size of the given slot */
+            var bidSize = [Number(curBid.width), Number(curBid.height)];
+
+            /* the creative/adm for the given slot that will be rendered if is the winner.
+             * Please make sure the URL is decoded and ready to be document.written.
+             */
+            var bidCreative = curBid.adm;
+
+            /* the dealId if applicable for this slot. */
+            var bidDealId = curBid.dealid;
+
+            /* explicitly pass */
+            var bidIsPass = bidPrice <= 0 ? true : false;
+
+            /* OPTIONAL: tracking pixel url to be fired AFTER rendering a winning creative.
+            * If firing a tracking pixel is not required or the pixel url is part of the adm,
+            * leave empty;
+            */
+            var pixelUrl = '';
 
             /* ---------------------------------------------------------------------------------------*/
 
+            curBid = null;
             if (bidIsPass) {
                 //? if (DEBUG) {
                 Scribe.info(__profile.partnerId + ' returned pass for { id: ' + adResponse.id + ' }.');
                 //? }
                 if (__profile.enabledAnalytics.requestTime) {
-                    EventsService.emit('hs_slot_pass', {
-                        sessionId: sessionId,
-                        statsId: __profile.statsId,
-                        htSlotId: curReturnParcel.htSlot.getId(),
-                        xSlotNames: [curReturnParcel.xSlotName]
-                    });
+                    __baseClass._emitStatsEvent(sessionId, 'hs_slot_pass', headerStatsInfo);
                 }
-
                 curReturnParcel.pass = true;
-
                 continue;
             }
 
             if (__profile.enabledAnalytics.requestTime) {
-                EventsService.emit('hs_slot_bid', {
-                    sessionId: sessionId,
-                    statsId: __profile.statsId,
-                    htSlotId: curReturnParcel.htSlot.getId(),
-                    xSlotNames: [curReturnParcel.xSlotName]
-                });
+                __baseClass._emitStatsEvent(sessionId, 'hs_slot_bid', headerStatsInfo);
             }
 
-            curReturnParcel.size = [bidWidth, bidHeight];
+            curReturnParcel.size = bidSize;
             curReturnParcel.targetingType = 'slot';
             curReturnParcel.targeting = {};
 
+            var targetingCpm = '';
+
             //? if (FEATURES.GPT_LINE_ITEMS) {
-            var targetingCpm = __bidTransformers.targeting.apply(bidPrice);
+            targetingCpm = __baseClass._bidTransformers.targeting.apply(bidPrice);
             var sizeKey = Size.arrayToString(curReturnParcel.size);
 
-            if (bidDealId !== '') {
+            if (bidDealId) {
                 curReturnParcel.targeting[__baseClass._configs.targetingKeys.pmid] = [sizeKey + '_' + bidDealId];
                 curReturnParcel.targeting[__baseClass._configs.targetingKeys.pm] = [sizeKey + '_' + targetingCpm];
             } else {
                 curReturnParcel.targeting[__baseClass._configs.targetingKeys.om] = [sizeKey + '_' + targetingCpm];
             }
             curReturnParcel.targeting[__baseClass._configs.targetingKeys.id] = [curReturnParcel.requestId];
-
-            if (__baseClass._configs.lineItemType === Constants.LineItemTypes.ID_AND_SIZE) {
-                RenderService.registerAdByIdAndSize(
-                    sessionId,
-                    __profile.partnerId,
-                    __render, [bidCreative],
-                    '',
-                    __profile.features.demandExpiry.enabled ? (__profile.features.demandExpiry.value + System.now()) : 0,
-                    curReturnParcel.requestId, [bidWidth, bidHeight]
-                );
-            } else if (__baseClass._configs.lineItemType === Constants.LineItemTypes.ID_AND_PRICE) {
-                RenderService.registerAdByIdAndPrice(
-                    sessionId,
-                    __profile.partnerId,
-                    __render, [bidCreative],
-                    '',
-                    __profile.features.demandExpiry.enabled ? (__profile.features.demandExpiry.value + System.now()) : 0,
-                    curReturnParcel.requestId,
-                    targetingCpm
-                );
-            }
             //? }
 
             //? if (FEATURES.RETURN_CREATIVE) {
             curReturnParcel.adm = bidCreative;
+            if (pixelUrl) {
+                curReturnParcel.winNotice = __renderPixel.bind(null, pixelUrl);
+            }
             //? }
 
             //? if (FEATURES.RETURN_PRICE) {
-            curReturnParcel.price = Number(__bidTransformers.price.apply(bidPrice));
+            curReturnParcel.price = Number(__baseClass._bidTransformers.price.apply(bidPrice));
             //? }
 
+            var pubKitAdId = RenderService.registerAd({
+                sessionId: sessionId,
+                partnerId: __profile.partnerId,
+                adm: bidCreative,
+                requestId: curReturnParcel.requestId,
+                size: curReturnParcel.size,
+                price: targetingCpm,
+                dealId: bidDealId || undefined,
+                timeOfExpiry: __profile.features.demandExpiry.enabled ? (__profile.features.demandExpiry.value + System.now()) : 0,
+                auxFn: __renderPixel,
+                auxArgs: [pixelUrl]
+            });
+
             //? if (FEATURES.INTERNAL_RENDER) {
-            var pubKitAdId = RenderService.registerAd(
-                sessionId,
-                __profile.partnerId,
-                __render, [bidCreative],
-                '',
-                __profile.features.demandExpiry.enabled ? (__profile.features.demandExpiry.value + System.now()) : 0
-            );
             curReturnParcel.targeting.pubKitAdId = pubKitAdId;
             //? }
         }
-
     }
 
     /* =====================================
@@ -364,6 +406,7 @@ function RhythmOneHtb(configs) {
      * ---------------------------------- */
 
     (function __constructor() {
+        ComplianceService = SpaceCamp.services.ComplianceService;
         EventsService = SpaceCamp.services.EventsService;
         RenderService = SpaceCamp.services.RenderService;
 
@@ -378,7 +421,7 @@ function RhythmOneHtb(configs) {
         __profile = {
             partnerId: 'RhythmOneHtb', // PartnerName
             namespace: 'RhythmOneHtb', // Should be same as partnerName
-            statsId: 'RONE', // Three character unique partner identifier
+            statsId: 'RONE', // Unique partner identifier
             version: '2.0.0',
             targetingType: 'slot',
             enabledAnalytics: {
@@ -398,8 +441,9 @@ function RhythmOneHtb(configs) {
                 id: 'ix_rone_id',
                 om: 'ix_rone_cpm',
                 pm: 'ix_rone_cpm',
-                pmid: 'ix_rone_pmid'
+                pmid: 'ix_rone_dealid'
             },
+            bidUnitInCents: 1, // The bid price unit (in cents) the endpoint returns, please refer to the readme for details
             lineItemType: Constants.LineItemTypes.ID_AND_SIZE,
             callbackType: Partner.CallbackTypes.ID, // Callback type, please refer to the readme for details
             architecture: Partner.Architectures.SRA, // Request architecture, please refer to the readme for details
@@ -413,60 +457,6 @@ function RhythmOneHtb(configs) {
         if (results) {
             throw Whoopsie('INVALID_CONFIG', results);
         }
-        //? }
-
-        /*
-         * Adjust the below bidTransformerConfigs variable to match the units the adapter
-         * sends bids in and to match line item setup. This configuration variable will
-         * be used to transform the bids going into DFP.
-         */
-
-        /* - Please fill out this bid trasnformer according to your module's bid response format - */
-        var bidTransformerConfigs = {
-            //? if (FEATURES.GPT_LINE_ITEMS) {
-            targeting: {
-                inputCentsMultiplier: 1, // Input is in cents
-                outputCentsDivisor: 1, // Output as cents
-                outputPrecision: 0, // With 0 decimal places
-                roundingType: 'FLOOR', // jshint ignore:line
-                floor: 0,
-                buckets: [{
-                    max: 2000, // Up to 20 dollar (above 5 cents)
-                    step: 5 // use 5 cent increments
-                }, {
-                    max: 5000, // Up to 50 dollars (above 20 dollars)
-                    step: 100 // use 1 dollar increments
-                }]
-            },
-            //? }
-            //? if (FEATURES.RETURN_PRICE) {
-            price: {
-                inputCentsMultiplier: 1, // Input is in cents
-                outputCentsDivisor: 1, // Output as cents
-                outputPrecision: 0, // With 0 decimal places
-                roundingType: 'NONE',
-            },
-            //? }
-        };
-
-        /* --------------------------------------------------------------------------------------- */
-
-        if (configs.bidTransformer) {
-            //? if (FEATURES.GPT_LINE_ITEMS) {
-            bidTransformerConfigs.targeting = configs.bidTransformer;
-            //? }
-            //? if (FEATURES.RETURN_PRICE) {
-            bidTransformerConfigs.price.inputCentsMultiplier = configs.bidTransformer.inputCentsMultiplier;
-            //? }
-        }
-
-        __bidTransformers = {};
-
-        //? if (FEATURES.GPT_LINE_ITEMS) {
-        __bidTransformers.targeting = BidTransformer(bidTransformerConfigs.targeting);
-        //? }
-        //? if (FEATURES.RETURN_PRICE) {
-        __bidTransformers.price = BidTransformer(bidTransformerConfigs.price);
         //? }
 
         __baseClass = Partner(__profile, configs, null, {
@@ -503,7 +493,6 @@ function RhythmOneHtb(configs) {
          * ---------------------------------- */
 
         //? if (TEST) {
-        render: __render,
         parseResponse: __parseResponse,
         generateRequestObj: __generateRequestObj,
         adResponseCallback: adResponseCallback,
