@@ -32,6 +32,32 @@ function partnerValidator(configs) {
                             placementId: {
                                 type: 'string',
                                 minLength: 1
+                            },
+                            zone: {
+                                type: 'string',
+                                minLength: 1
+                            },
+                            path: {
+                                type: 'string',
+                                minLength: 1
+                            },
+                            imp: {
+                                type: 'string',
+                                minLength: 1
+                            },
+                            adType: {
+                                type: 'string',
+                                minLength: 1
+                            },
+                            sizes: {
+                                type: 'array',
+                                items: {
+                                    type: 'array',
+                                    exactLength: 2,
+                                    items: {
+                                        type: 'number'
+                                    }
+                                }
                             }
                         }
                     }

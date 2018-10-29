@@ -12,9 +12,9 @@ var Size = require('size.js');
 var SpaceCamp = require('space-camp.js');
 var System = require('system.js');
 var Network = require('network.js');
-var Utilities = require('utilities.js');
 
 var ComplianceService;
+
 var RenderService;
 
 //? if (DEBUG) {
@@ -54,6 +54,7 @@ function RhythmOneHtb(configs) {
      * @private {object}
      */
     var __profile;
+    var getRMPUrl;
 
     /* =====================================
      * Functions
@@ -129,11 +130,13 @@ function RhythmOneHtb(configs) {
          */
 
         /* ---------------------- PUT CODE HERE ------------------------------------ */
-        var queryObj = {};
+        var queryObj = [];
         var callbackId = System.generateUniqueId();
 
         /* Change this to your bidder endpoint. */
-        var baseUrl = Browser.getProtocol() + '//someAdapterEndpoint.com/bid';
+
+        var baseUrl;
+        var w = typeof window !== 'undefined' ? window : { document: { location: { href: '' } } };
 
         /* ------------------------ Get consent information -------------------------
          * If you want to implement GDPR consent in your adapter, use the function
@@ -159,38 +162,190 @@ function RhythmOneHtb(configs) {
          * returned from gdpr.getConsent() are safe defaults and no attempt has been
          * made by the wrapper to contact a Consent Management Platform.
          */
-        var gdprStatus = ComplianceService.gdpr.getConsent();
-        var privacyEnabled = ComplianceService.isPrivacyEnabled();
 
         /* ---------------- Craft bid request using the above returnParcels --------- */
 
         /* ------- Put GDPR consent code here if you are implementing GDPR ---------- */
 
         /* -------------------------------------------------------------------------- */
+        var gdprConsent = ComplianceService.gdpr.getConsent();
+        var privacyEnabled = ComplianceService.isPrivacyEnabled();
+
+        if (gdprConsent && privacyEnabled && typeof gdprConsent === 'object') {
+            if (typeof gdprConsent.applies === 'boolean') {
+                queryObj.push('gdpr=' + Number(gdprConsent.applies));
+            }
+
+            if (gdprConsent.consentString !== '') {
+                queryObj.push('gdpr=' + gdprConsent.consentString);
+            }
+        }
+
+        var d = w.document.location.ancestorOrigins;
+        var domain = d && d.length > 0 ? d[d.length - 1] : w.top.document.location.hostname;
+        queryObj.push('domain=' + encodeURIComponent(domain));
+
+        var l;
+        try {
+            l = w.top.document.location.href.toString();
+        } catch (ex) {
+            l = w.document.location.href.toString();
+        }
+        queryObj.push('url=' + encodeURIComponent(l));
+
+        baseUrl = getRMPUrl(queryObj, returnParcels);
 
         return {
-            url: baseUrl,
-            data: queryObj,
+            url: Browser.getProtocol() + baseUrl,
+            data: '',
             callbackId: callbackId
         };
     }
 
-    /* =============================================================================
-     * STEP 3  | Response callback
-     * -----------------------------------------------------------------------------
-     *
-     * This generator is only necessary if the partner's endpoint has the ability
-     * to return an arbitrary ID that is sent to it. It should retrieve that ID from
-     * the response and save the response to adResponseStore keyed by that ID.
-     *
-     * If the endpoint does not have an appropriate field for this, set the profile's
-     * callback type to CallbackTypes.CALLBACK_NAME and omit this function.
-     */
-    function adResponseCallback(adResponse) {
-        /* Get callbackId from adResponse here */
-        var callbackId = 0;
-        __baseClass._adResponseStore[callbackId] = adResponse;
+    function getImp(rp) {
+        var c = [];
+        for (var i = 0; i < rp.length; i++) {
+            if (rp[i].xSlotName) {
+                c.push(rp[i].xSlotName);
+            }
+        }
+
+        return c;
     }
+
+    function getSize(rp) {
+        var tw = [];
+        var th = [];
+        for (var i = 0; i < rp.length; i++) {
+            if (rp[i].xSlotRef.sizes) {
+                var w = [];
+                var h = [];
+                for (var j = 0; j < rp[i].xSlotRef.sizes.length; ++j) {
+                    w.push(rp[i].xSlotRef.sizes[j][0]);
+                    h.push(rp[i].xSlotRef.sizes[j][1]);
+                }
+                tw.push(w.join('|'));
+                th.push(h.join('|'));
+            }
+        }
+
+        return [tw, th];
+    }
+
+    function getMediaTypes(rp) {
+        var mt = [];
+        for (var i = 0; i < rp.length; i++) {
+            mt.push(rp[i].xSlotRef.adType && rp[i].xSlotRef.adType === 'video' ? 'v' : 'd');
+        }
+
+        return mt;
+    }
+
+    function getFloorPrice(rp) {
+        var fp = [];
+        for (var i = 0; i < rp.length; i++) {
+            fp.push(rp[i].xSlotRef.floor || 0);
+        }
+
+        return fp;
+    }
+
+    getRMPUrl = function (queryObj, returnParcels) {
+        var ref = returnParcels[0].xSlotRef;
+        var w = typeof window !== 'undefined' ? window : { document: { location: { href: '' } } };
+
+        var url = ref.endpoint || '//tag.1rx.io/rmp/{placementId}/0/{path}?z={zone}';
+
+        try {
+            url = url.replace(/\{placementId\}/i, ref.placementId || []);
+            url = url.replace(/\{zone\}/i, ref.zone || '1r');
+            url = url.replace(/\{path\}/i, ref.path || 'mvo');
+        } catch (ex) {
+        }
+
+        function p(k, v, d) {
+            if (v instanceof Array) {
+                v = v.join(d || ',');
+            }
+
+            if (typeof v !== 'undefined') {
+                queryObj.push(encodeURIComponent(k) + '=' + encodeURIComponent(v));
+            }
+        }
+
+        function attempt(valueFunction, defaultValue) {
+            try {
+                return valueFunction();
+            } catch (ex) {}
+
+            return defaultValue;
+        }
+
+        p('title', attempt(function () {
+            return w.top.document.title;
+        }, ''));
+
+        p('dsh', w.screen ? w.screen.height : '');
+        p('dsw', w.screen ? w.screen.width : '');
+        p('tz', (new Date())
+            .getTimezoneOffset());
+
+        var dtype = 0;
+        if ((/(ios|ipod|ipad|iphone|android)/i).test(w.navigator.userAgent)) {
+            dtype = 1;
+        } else if ((/(smart[-]?tv|hbbtv|appletv|googletv|hdmi|netcast\.tv|viera|nettv|roku|\bdtv\b|sonydtv|inettvbrowser|\btv\b)/i).test(w.navigator.userAgent)) {
+            dtype = 3;
+        } else {
+            dtype = 2;
+        }
+        p('dtype', dtype);
+
+        p('flash', attempt(function () {
+            var n = w.navigator;
+            var plg = n.plugins;
+            var m = n.mimeTypes;
+            var t = 'application/x-shockwave-flash';
+            var x = w.ActiveXObject;
+
+            if (plg && plg['Shockwave Flash'] && m && m[t] && m[t].enabledPlugin) {
+                return 1;
+            }
+
+            if (x) {
+                try {
+                    if (new w.ActiveXObject('ShockwaveFlash.ShockwaveFlash')) {
+                        return 1;
+                    }
+                } catch (e) {}
+            }
+
+            return 0;
+        }, 0));
+
+        var heights = [];
+        var widths = [];
+        var floors = [];
+        var mediaTypes = [];
+        var configuredImp = [];
+
+        configuredImp = getImp(returnParcels);
+        widths = getSize(returnParcels)[0] || [];
+        heights = getSize(returnParcels)[1] || [];
+
+        mediaTypes = getMediaTypes(returnParcels);
+        floors = getFloorPrice(returnParcels);
+
+        p('imp', configuredImp || ref.placementId);
+        p('w', widths);
+        p('h', heights);
+        p('floor', floors);
+        p('t', mediaTypes);
+        p('ht', 'indexExchange');
+
+        url += '&' + queryObj.join('&');
+
+        return url;
+    };
 
     /* -------------------------------------------------------------------------- */
 
@@ -229,6 +384,7 @@ function RhythmOneHtb(configs) {
      * generateRequestObj to signal which slots need demand. In this funciton, the demand needs to be
      * attached to each one of the objects for which the demand was originally requested for.
      */
+
     function __parseResponse(sessionId, adResponse, returnParcels) {
         /* =============================================================================
          * STEP 4  | Parse & store demand response
@@ -250,14 +406,18 @@ function RhythmOneHtb(configs) {
          */
 
         /* ---------- Process adResponse and extract the bids into the bids array ------------ */
+        var bids = [];
 
-        var bids = adResponse;
+        for (var i = 0; adResponse.seatbid && i < adResponse.seatbid.length; i++) {
+            for (var j = 0; adResponse.seatbid[i].bid && j < adResponse.seatbid[i].bid.length; j++) {
+                bids.push(adResponse.seatbid[i].bid[j]);
+            }
+        }
 
         /* --------------------------------------------------------------------------------- */
 
-        for (var j = 0; j < returnParcels.length; j++) {
-            var curReturnParcel = returnParcels[j];
-
+        for (var k = 0; k < returnParcels.length; k++) {
+            var curReturnParcel = returnParcels[k];
             var headerStatsInfo = {};
             var htSlotId = curReturnParcel.htSlot.getId();
             headerStatsInfo[htSlotId] = {};
@@ -265,18 +425,17 @@ function RhythmOneHtb(configs) {
 
             var curBid;
 
-            for (var i = 0; i < bids.length; i++) {
+            for (var n = 0; n < bids.length; n++) {
                 /**
                  * This section maps internal returnParcels and demand returned from the bid request.
                  * In order to match them correctly, they must be matched via some criteria. This
                  * is usually some sort of placements or inventory codes. Please replace the someCriteria
                  * key to a key that represents the placement in the configuration and in the bid responses.
                  */
-
                 /* ----------- Fill this out to find a matching bid for the current parcel ------------- */
-                if (curReturnParcel.xSlotRef.someCriteria === bids[i].someCriteria) {
-                    curBid = bids[i];
-                    bids.splice(i, 1);
+                if (curReturnParcel.xSlotName === bids[n].impid) {
+                    curBid = bids[n];
+                    bids.splice(n, 1);
 
                     break;
                 }
@@ -301,7 +460,7 @@ function RhythmOneHtb(configs) {
             var bidPrice = curBid.price;
 
             /* The size of the given slot */
-            var bidSize = [Number(curBid.width), Number(curBid.height)];
+            var bidSize = [Number(curBid.w), Number(curBid.h)];
 
             /* The creative/adm for the given slot that will be rendered if is the winner.
              * Please make sure the URL is decoded and ready to be document.written.
@@ -386,7 +545,6 @@ function RhythmOneHtb(configs) {
                 auxFn: __renderPixel,
                 auxArgs: [pixelUrl]
             });
-
             //? if (FEATURES.INTERNAL_RENDER) {
             curReturnParcel.targeting.pubKitAdId = pubKitAdId;
             //? }
@@ -440,7 +598,7 @@ function RhythmOneHtb(configs) {
             /* The bid price unit (in cents) the endpoint returns, please refer to the readme for details */
             bidUnitInCents: 1,
             lineItemType: Constants.LineItemTypes.ID_AND_SIZE,
-            callbackType: Partner.CallbackTypes.ID,
+            callbackType: Partner.CallbackTypes.NONE,
             architecture: Partner.Architectures.SRA,
             requestType: Partner.RequestTypes.ANY
         };
@@ -454,11 +612,9 @@ function RhythmOneHtb(configs) {
             throw Whoopsie('INVALID_CONFIG', results);
         }
         //? }
-
         __baseClass = Partner(__profile, configs, null, {
             parseResponse: __parseResponse,
-            generateRequestObj: __generateRequestObj,
-            adResponseCallback: adResponseCallback
+            generateRequestObj: __generateRequestObj
         });
     })();
 
@@ -490,8 +646,7 @@ function RhythmOneHtb(configs) {
 
         //? if (TEST) {
         parseResponse: __parseResponse,
-        generateRequestObj: __generateRequestObj,
-        adResponseCallback: adResponseCallback
+        generateRequestObj: __generateRequestObj
         //? }
     };
 
