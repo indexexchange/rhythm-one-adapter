@@ -11,7 +11,7 @@ function getStatsId() {
 function getBidRequestRegex() {
     return {
         method: 'GET',
-        urlRegex: /^http?:\/\/tag\.1rx\.io\/rmp.*/
+        urlRegex: /^http?:|https?:\/\/tag\.1rx\.io\/rmp.*/
     };
 }
 
@@ -30,7 +30,7 @@ function getConfig() {
                 placementId: '471141',
                 zone: 'autoqa',
                 path: 'mvo',
-                imp: ['1'],
+                imp: '1',
                 adType: 'banner',
                 floor: '100',
                 sizes: [[300, 250]]
@@ -39,7 +39,7 @@ function getConfig() {
                 placementId: '471141',
                 zone: 'autoqa',
                 path: 'mvo',
-                imp: ['2'],
+                imp: '2',
                 floor: '100',
                 adType: 'banner',
                 sizes: [[300, 250]]
