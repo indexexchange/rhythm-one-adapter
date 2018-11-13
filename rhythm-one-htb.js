@@ -136,7 +136,6 @@ function RhythmOneHtb(configs) {
         /* Change this to your bidder endpoint. */
 
         var baseUrl;
-        var w = typeof window !== 'undefined' ? window : { document: { location: { href: '' } } };
 
         /* ------------------------ Get consent information -------------------------
          * If you want to implement GDPR consent in your adapter, use the function
@@ -181,17 +180,9 @@ function RhythmOneHtb(configs) {
             }
         }
 
-        var d = w.document.location.ancestorOrigins;
-        var domain = d && d.length > 0 ? d[d.length - 1] : w.top.document.location.hostname;
-        queryObj.push('domain=' + encodeURIComponent(domain));
+        queryObj.push('domain=' + encodeURIComponent(Browser.topWindow.location.hostname));
 
-        var l;
-        try {
-            l = w.top.document.location.href.toString();
-        } catch (ex) {
-            l = w.document.location.href.toString();
-        }
-        queryObj.push('url=' + encodeURIComponent(l));
+        queryObj.push('url=' + encodeURIComponent(Browser.topWindow.location.href));
 
         baseUrl = getRMPUrl(queryObj, returnParcels);
 
@@ -252,7 +243,6 @@ function RhythmOneHtb(configs) {
 
     getRMPUrl = function (queryObj, returnParcels) {
         var ref = returnParcels[0].xSlotRef;
-        var w = typeof window !== 'undefined' ? window : { document: { location: { href: '' } } };
 
         var url = ref.endpoint || '//tag.1rx.io/rmp/{placementId}/0/{path}?z={zone}';
 
@@ -281,19 +271,15 @@ function RhythmOneHtb(configs) {
             return defaultValue;
         }
 
-        p('title', attempt(function () {
-            return w.top.document.title;
-        }, ''));
-
-        p('dsh', w.screen ? w.screen.height : '');
-        p('dsw', w.screen ? w.screen.width : '');
-        p('tz', (new Date())
-            .getTimezoneOffset());
+        p('title', Browser.topWindow.document.title);
+        p('dsh', Browser.getScreenHeight());
+        p('dsw', Browser.getScreenWidth());
+        p('tz', System.getTimezoneOffset());
 
         var dtype = 0;
-        if ((/(ios|ipod|ipad|iphone|android)/i).test(w.navigator.userAgent)) {
+        if ((/(ios|ipod|ipad|iphone|android)/i).test(Browser.getUserAgent())) {
             dtype = 1;
-        } else if ((/(smart[-]?tv|hbbtv|appletv|googletv|hdmi|netcast\.tv|viera|nettv|roku|\bdtv\b|sonydtv|inettvbrowser|\btv\b)/i).test(w.navigator.userAgent)) {
+        } else if ((/(smart[-]?tv|hbbtv|appletv|googletv|hdmi|netcast\.tv|viera|nettv|roku|\bdtv\b|sonydtv|inettvbrowser|\btv\b)/i).test(Browser.getUserAgent())) {
             dtype = 3;
         } else {
             dtype = 2;
@@ -301,11 +287,11 @@ function RhythmOneHtb(configs) {
         p('dtype', dtype);
 
         p('flash', attempt(function () {
-            var n = w.navigator;
+            var n = Browser.topWindow.navigator;
             var plg = n.plugins;
             var m = n.mimeTypes;
             var t = 'application/x-shockwave-flash';
-            var x = w.ActiveXObject;
+            var x = Browser.topWindow.ActiveXObject;
 
             if (plg && plg['Shockwave Flash'] && m && m[t] && m[t].enabledPlugin) {
                 return 1;
@@ -313,7 +299,7 @@ function RhythmOneHtb(configs) {
 
             if (x) {
                 try {
-                    if (new w.ActiveXObject('ShockwaveFlash.ShockwaveFlash')) {
+                    if (new Browser.topWindow.ActiveXObject('ShockwaveFlash.ShockwaveFlash')) {
                         return 1;
                     }
                 } catch (e) {}
