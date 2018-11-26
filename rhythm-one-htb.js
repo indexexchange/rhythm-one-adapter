@@ -172,11 +172,11 @@ function RhythmOneHtb(configs) {
 
         if (gdprConsent && privacyEnabled && typeof gdprConsent === 'object') {
             if (typeof gdprConsent.applies === 'boolean') {
-                queryObj.push('gdpr=' + Number(gdprConsent.applies));
+                queryObj.push('gdpr=' + gdprConsent.applies);
             }
 
             if (gdprConsent.consentString !== '') {
-                queryObj.push('gdpr=' + gdprConsent.consentString);
+                queryObj.push('gdpr_consent=' + gdprConsent.consentString);
             }
         }
 
@@ -244,7 +244,7 @@ function RhythmOneHtb(configs) {
     getRMPUrl = function (queryObj, returnParcels) {
         var ref = returnParcels[0].xSlotRef;
 
-        var url = ref.endpoint || '//tag.1rx.io/rmp/{placementId}/0/{path}?z={zone}';
+        var url = '//tag.1rx.io/rmp/{placementId}/0/{path}?z={zone}';
 
         try {
             url = url.replace(/\{placementId\}/i, ref.placementId || []);
@@ -557,7 +557,7 @@ function RhythmOneHtb(configs) {
             partnerId: 'RhythmOneHtb',
             namespace: 'RhythmOneHtb',
             statsId: 'RONE',
-            version: '2.0.0',
+            version: '2.0.2',
             targetingType: 'slot',
             enabledAnalytics: {
                 requestTime: true
