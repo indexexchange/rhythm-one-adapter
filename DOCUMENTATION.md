@@ -36,7 +36,8 @@
 | Request Architecture (MRA / SRA) | SRA |
  
 ## Currencies Supported
- USD
+USD
+
 ## Bid Request Information
 ### Parameters
 | Key | Required | Type | Description |
@@ -76,6 +77,7 @@ http://tag.1rx.io/rmp/{placementId}/0/mvo?z=1r&gdpr=true&gdpr_consent=BOXhxMMOXh
   "bidid" : "ffffffff-ffc7-72d3-47a1-0167350072d3"
 }
 ```
+
 ### Pass Example
 ```javascript
 Returns HTTP status code - 204 No Content
