@@ -3,9 +3,9 @@
 |Feature|  |
 |---|---|
 | Consent | Y |
-| Native Ad Support |  |
-| SafeFrame Support |  |
-| PMP Support | |
+| Native Ad Support | N |
+| SafeFrame Support | N |
+| PMP Support | N |
  
 ## Browser Compatibility
 | Browser |  |
@@ -77,7 +77,9 @@ http://tag.1rx.io/rmp/{placementId}/0/mvo?z=1r&gdpr=true&gdpr_consent=BOXhxMMOXh
 }
 ```
 ### Pass Example
+```javascript
 Returns HTTP status code - 204 No Content
+```
 
 ## Configuration Information
 ### Configuration Keys

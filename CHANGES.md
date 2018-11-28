@@ -1,3 +1,6 @@
+# 2.0.3
+- Resolved DOCUMENTATION.md file merge conflict
+
 # 2.0.2
 - Updated query string parameter name for GDPR
 - Removed optional parameters from rhythm-one-htb-validator.js file

@@ -557,7 +557,7 @@ function RhythmOneHtb(configs) {
             partnerId: 'RhythmOneHtb',
             namespace: 'RhythmOneHtb',
             statsId: 'RONE',
-            version: '2.0.2',
+            version: '2.0.3',
             targetingType: 'slot',
             enabledAnalytics: {
                 requestTime: true
