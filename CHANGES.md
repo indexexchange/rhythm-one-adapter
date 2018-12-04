@@ -1,3 +1,6 @@
+# 2.0.4
+- DOCUMENTATION.md file updated
+
 # 2.0.3
 - Resolved DOCUMENTATION.md file merge conflict
 
