@@ -32,6 +32,16 @@ function partnerValidator(configs) {
                             placementId: {
                                 type: 'string',
                                 minLength: 1
+                            },
+                            sizes: {
+                                type: 'array',
+                                items: {
+                                    type: 'array',
+                                    exactLength: 2,
+                                    items: {
+                                        type: 'number'
+                                    }
+                                }
                             }
                         }
                     }
